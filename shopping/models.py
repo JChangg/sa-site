@@ -1,12 +1,21 @@
 from __future__ import unicode_literals
 
-from django.db import models
+from django.db import models, IntegrityError, DataError
+from django.utils import timezone
+from django.conf import settings
 
 class Tag(models.Model):
     word = models.CharField(max_length=10)
     created = models.DateTimeField('Date created')
+    
     def __str__(self):
         return self.word
+        
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.created = timezone.now()
+        super(Tag, self).save(*args, **kwargs)
+
 
 class Promotion(models.Model):
     name = models.CharField(max_length=200)
@@ -17,7 +26,13 @@ class Promotion(models.Model):
         return self.name
     
     def remaining_time(self):
-        return self.expires - self.created
+        return self.expires - timezone.now()
+        
+    def save(self, *args, **kwargs):
+        if self.created <= self.expires:
+            super(Promotion, self).save(*args, **kwargs)
+        else:
+            raise DataError("Must expire after creation")
         
     
 class Item(models.Model):
@@ -36,6 +51,7 @@ class Item(models.Model):
         related_name='items_promoted', 
         blank=True,
     )
+    
     def __str__(self):
         return self.name
         
@@ -46,7 +62,8 @@ class Item(models.Model):
 class Image(models.Model):
     name = models.CharField(max_length=200)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    picture = models.ImageField(upload_to="images")
+    picture = models.ImageField(upload_to=settings.SHOPPING_DIR)
+    
     def __str__(self):
         return self.name
 
@@ -58,6 +75,16 @@ class Thumbnail(models.Model):
         on_delete=models.CASCADE, 
         primary_key=True
     )
+    
     def __str__(self):
         return self.picture.__str__()
     
+    def save(self, *args, **kwargs):
+        if self.item == self.picture.item:
+            super(Thumbnail, self).save(*args, **kwargs)
+        else:
+            exp_txt = "Thumbnail should belong to the same object"
+            raise IntegrityError(exp_txt)
+            
+            
+            
