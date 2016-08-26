@@ -1,8 +1,12 @@
 from __future__ import unicode_literals
+import os
 
 from django.db import models, IntegrityError, DataError
 from django.utils import timezone
 from django.conf import settings
+from django.dispatch import receiver
+from django.db.models import F
+import errors
 
 class Tag(models.Model):
     word = models.CharField(max_length=10)
@@ -57,7 +61,17 @@ class Item(models.Model):
         
     def out_of_stock(self):
         return self.stock <= 0
-
+    
+    def sell(self, num=1):
+        if self.stock < num:
+            raise errors.NotEnoughStockException(self.stock, num)
+        else:
+            self.stock = F('stock') - num
+            self.save()
+        
+    def add(self, num):
+        self.stock = F('stock') + num
+        self.save()
         
 class Image(models.Model):
     name = models.CharField(max_length=200)
@@ -66,7 +80,6 @@ class Image(models.Model):
     
     def __str__(self):
         return self.name
-
 
 class Thumbnail(models.Model):
     picture = models.ForeignKey(Image)
@@ -86,5 +99,31 @@ class Thumbnail(models.Model):
             exp_txt = "Thumbnail should belong to the same object"
             raise IntegrityError(exp_txt)
             
-            
-            
+
+# These two auto-delete files from filesystem when they are unneeded:
+@receiver(models.signals.post_delete, sender=Image)
+def auto_delete_file_on_delete(sender, instance, **kwargs):
+    """Deletes file from filesystem
+    when corresponding `Image` object is deleted.
+    """
+    if instance.picture:
+        if os.path.isfile(instance.picture.path):
+            os.remove(instance.picture.path)
+
+@receiver(models.signals.pre_save, sender=Image)
+def auto_delete_file_on_change(sender, instance, **kwargs):
+    """Deletes file from filesystem
+    when corresponding `Image` object is changed.
+    """
+    if not instance.pk:
+        return False
+
+    try:
+        old_file = Image.objects.get(pk=instance.pk).picture
+    except Image.DoesNotExist:
+        return False
+
+    new_file = instance.picture
+    if not old_file == new_file:
+        if os.path.isfile(old_file.path):
+            os.remove(old_file.path)
