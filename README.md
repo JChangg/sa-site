@@ -11,3 +11,5 @@
 * get absolute url
 * catagory
 * image field
+* tags
+* filtering
