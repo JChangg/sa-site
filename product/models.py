@@ -12,13 +12,15 @@ import json
 class Tag(models.Model):
     word = models.CharField(max_length=10)
     created = models.DateTimeField('Date created')
-    colour = models.CharField(max_length=6, min_length=6, default='000000')
+    colour = models.CharField(max_length=6, default='000000')
     def __str__(self):
         return self.word
         
     def save(self, *args, **kwargs):
         if not self.id:
             self.created = timezone.now()
+        if not len(self.colour) == 6:
+            raise DataError("HEX color code expected")
         super(Tag, self).save(*args, **kwargs)
 
 
