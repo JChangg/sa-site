@@ -11,7 +11,7 @@ import json
 
 class Tag(models.Model):
     word = models.CharField(max_length=10)
-    created = models.DateTimeField('Date created')
+    created = models.DateTimeField('Date created', auto_now=True)
     colour = models.CharField(max_length=6, default='000000')
     def __str__(self):
         return self.word
@@ -26,21 +26,18 @@ class Tag(models.Model):
 
 class Promotion(models.Model):
     
-    BUNDLE = 'bn'
-    REDUCTION = 'rd'
-    MULTIBUY = 'mb'
-    PERCENT = 'pc'
+    BUNDLE = 'b'
+    VALUE = 'v'
     TYPES_OF_PROMO = (
         (BUNDLE, 'Bundle'),
-        (REDUCTION, 'Reduction'),
-        (MULTIBUY, 'Multi-buy'),
-        (PERCENT, 'Percentage')
+        (VALUE, 'Value')
     )
     
     name = models.CharField(max_length=200)
     promo_type = models.CharField(
-        max_length=2,
+        max_length=1,
         choices=TYPES_OF_PROMO,
+        default=BUNDLE
     )
 
     created = models.DateTimeField('Date created')
@@ -51,35 +48,49 @@ class Promotion(models.Model):
     def __str__(self):
         return self.name
     
-    def remaining_time(self):
-        return self.expires - timezone.now()
     
     def get_params(self):
         return json.loads(self.params)
+    
+    def set_params(self, params):
+        return json.dumps(params)
     
     def save(self, *args, **kwargs):
         if self.created <= self.expires:
             super(Promotion, self).save(*args, **kwargs)
         else:
             raise DataError("Must expire after creation")
+
+
         
     
-class Item(models.Model):
+class Product(models.Model):
     name = models.CharField(max_length=200)
     stock = models.IntegerField(default=0)
     description = models.CharField(max_length=1000)
     created = models.DateTimeField('Date created')
     RRP = models.FloatField()
+    price = models.FloatField()
     tags = models.ManyToManyField(
         Tag, 
-        related_name='items_tagged', 
         blank=True
     )
     promotion = models.ManyToManyField(
         Promotion, 
-        related_name='items_promoted', 
         blank=True,
     )
+    
+    SMALL = 'sm'
+    MEDIUM = 'md'
+    LARGE = 'lg'
+    
+    SIZE_CHOICES = (
+        (SMALL, 'Small'),
+        (MEDIUM, 'Medium'),
+        (LARGE, 'large')
+    )
+    
+    size = models.CharField(max_length=2, choices=SIZE_CHOICES, default=SMALL)
     
     def __str__(self):
         return self.name
@@ -97,10 +108,16 @@ class Item(models.Model):
     def add(self, num):
         self.stock = F('stock') + num
         self.save()
-        
+    
+    def save(self, *args, **kwargs):
+        if not self.price:
+            self.price = self.RRP
+        super(Product, self).save(*args, **kwargs)
+
+    
 class Image(models.Model):
     name = models.CharField(max_length=200)
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
     picture = models.ImageField(upload_to=settings.SHOPPING_DIR)
     
     def __str__(self):
@@ -108,8 +125,8 @@ class Image(models.Model):
 
 class Thumbnail(models.Model):
     picture = models.ForeignKey(Image)
-    item = models.OneToOneField(
-        Item, 
+    product = models.OneToOneField(
+        Product, 
         on_delete=models.CASCADE, 
         primary_key=True
     )
@@ -118,7 +135,7 @@ class Thumbnail(models.Model):
         return self.picture.__str__()
     
     def save(self, *args, **kwargs):
-        if self.item == self.picture.item:
+        if self.product == self.picture.product:
             super(Thumbnail, self).save(*args, **kwargs)
         else:
             exp_txt = "Thumbnail should belong to the same object"
