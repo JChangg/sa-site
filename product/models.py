@@ -1,13 +1,28 @@
 from __future__ import unicode_literals
 import os
 
-from django.db import models, IntegrityError, DataError
+from django.db import models
 from django.utils import timezone
 from django.conf import settings
 from django.dispatch import receiver
 from django.db.models import F
 import errors
 import json
+from django.db import IntegrityError
+from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import ValidationError
+from easy_thumbnails.fields import ThumbnailerImageField
+
+
+
+# Validators
+def validate_non_zero(value):
+    if value < 0:
+        raise ValidationError(
+            _('%(value)s is negative'),
+            params={'value': value},
+        )
+
 
 class Tag(models.Model):
     word = models.CharField(max_length=10)
@@ -20,7 +35,7 @@ class Tag(models.Model):
         if not self.id:
             self.created = timezone.now()
         if not len(self.colour) == 6:
-            raise DataError("HEX color code expected")
+            raise ValidationError("HEX color code expected")
         super(Tag, self).save(*args, **kwargs)
 
 
@@ -56,30 +71,33 @@ class Promotion(models.Model):
         return json.dumps(params)
     
     def save(self, *args, **kwargs):
-        if self.created <= self.expires:
-            super(Promotion, self).save(*args, **kwargs)
+        if self.created > self.expires:
+            raise ValidationError("Must expire after creation")
+        elif self.promo_type not in dict(Promotion.TYPES_OF_PROMO):
+            raise ValidationError("Must choose from item set.")
         else:
-            raise DataError("Must expire after creation")
+            super(Promotion, self).save(*args, **kwargs)
 
 
         
     
 class Product(models.Model):
     name = models.CharField(max_length=200)
-    stock = models.IntegerField(default=0)
     description = models.CharField(max_length=1000)
     created = models.DateTimeField('Date created')
-    RRP = models.FloatField()
-    price = models.FloatField()
     tags = models.ManyToManyField(
         Tag, 
         blank=True
     )
-    promotion = models.ManyToManyField(
-        Promotion, 
-        blank=True,
-    )
-    
+
+    def __str__(self):
+        return self.name
+        
+
+
+
+
+class Item(models.Model):
     SMALL = 'sm'
     MEDIUM = 'md'
     LARGE = 'lg'
@@ -87,14 +105,43 @@ class Product(models.Model):
     SIZE_CHOICES = (
         (SMALL, 'Small'),
         (MEDIUM, 'Medium'),
-        (LARGE, 'large')
+        (LARGE, 'Large')
+    )
+
+    # useful fields
+    description = models.CharField(max_length=1000)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    RRP = models.DecimalField(
+        decimal_places=2, 
+        max_digits=10, 
+        validators=[validate_non_zero]
+    )
+    price = models.DecimalField(
+        decimal_places=2, 
+        max_digits=10, 
+        validators=[validate_non_zero]
+    )
+    created = models.DateTimeField(auto_now=True)
+    stock = models.IntegerField(default=0, validators=[validate_non_zero])
+    size = models.CharField(max_length=2, choices=SIZE_CHOICES, default=SMALL)
+
+    promotion = models.ManyToManyField(
+        Promotion, 
+        blank=True,
     )
     
-    size = models.CharField(max_length=2, choices=SIZE_CHOICES, default=SMALL)
     
-    def __str__(self):
-        return self.name
-        
+    class Meta:
+        unique_together = (("product", "size"),)
+    
+
+    def save(self, *args, **kwargs):
+        if self.size not in dict(Item.SIZE_CHOICES):
+            raise ValidationError('Invalid size')
+        if not self.price:
+            self.price = self.RRP
+        super(Item, self).save(*args, **kwargs)
+    
     def out_of_stock(self):
         return self.stock <= 0
     
@@ -108,34 +155,35 @@ class Product(models.Model):
     def add(self, num):
         self.stock = F('stock') + num
         self.save()
-    
-    def save(self, *args, **kwargs):
-        if not self.price:
-            self.price = self.RRP
-        super(Product, self).save(*args, **kwargs)
 
-    
+    def __str__(self):
+        return self.product.name + '_' + self.size
+        
+
 class Image(models.Model):
-    name = models.CharField(max_length=200)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    picture = models.ImageField(upload_to=settings.SHOPPING_DIR)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    picture = ThumbnailerImageField(upload_to=settings.SHOPPING_DIR)
     
     def __str__(self):
-        return self.name
+        return self.picture.name
 
 class Thumbnail(models.Model):
-    picture = models.ForeignKey(Image)
-    product = models.OneToOneField(
-        Product, 
+    picture = models.ForeignKey(
+        Image, 
+        on_delete=models.CASCADE
+    )
+    item = models.OneToOneField(
+        Item, 
         on_delete=models.CASCADE, 
         primary_key=True
     )
+    
     
     def __str__(self):
         return self.picture.__str__()
     
     def save(self, *args, **kwargs):
-        if self.product == self.picture.product:
+        if self.item == self.picture.item:
             super(Thumbnail, self).save(*args, **kwargs)
         else:
             exp_txt = "Thumbnail should belong to the same object"

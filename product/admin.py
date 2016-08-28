@@ -10,9 +10,20 @@ class ImageInline(admin.TabularInline):
     model = models.Image
     extra = 3
 
-class ProductAdmin(admin.ModelAdmin):
+
+
+class ItemAdmin(admin.ModelAdmin):
     inlines = [ThumbnailInline, ImageInline]
 
+class ItemInline(admin.TabularInline):
+    model = models.Item
+    extra = 3
+
+
+class ProductAdmin(admin.ModelAdmin):
+    inlines = [ItemInline]
+
+admin.site.register(models.Item, ItemAdmin)
 admin.site.register(models.Product, ProductAdmin)
 admin.site.register(models.Tag)
 admin.site.register(models.Promotion)
