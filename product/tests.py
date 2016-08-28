@@ -66,6 +66,8 @@ class ImageAbstractTestCase(ItemAbstractTestCase):
                 if f.startswith('__test_image__'):
                     os.remove(os.path.join(fpath, f))
 
+
+
 ################################################################################
 
 
@@ -76,7 +78,17 @@ class ProductTestCase(ProductAbstractTestCase, TestCase):
         ''' Tests whether the __str__ function returns name
         '''
         self.assertEqual(self.product.__str__(), self.product.name)
-    
+    def test_product_catagory_removal(self):
+        ''' Tests if removing catagory does *NOT* remove products
+        '''
+        catagory = self.product.catagories.create(
+            name="Test Catagory",
+            description="Test Catagory for test products"
+        )
+        catagory.delete()
+        self.product.refresh_from_db()
+        self.assertEqual(len(models.Product.objects.all()), 1)
+        
 
 class ItemTestCase(ItemAbstractTestCase, TestCase):
         
@@ -207,6 +219,26 @@ class ThumbnailTestCase(ImageAbstractTestCase, TestCase):
                 picture=image2,
                 item=self.item
             )
+            
+            
+class CatagoryTestCase(ProductAbstractTestCase, TestCase):
+    def setUp(self):
+        ProductAbstractTestCase.setUp(self)
+        self.catagory = self.product.catagories.create(
+            name="Test Catagory",
+            description="Test Catagory for test products"
+        )
+        
+    def test_multi_catagory(self):
+        ''' test 2 catagories can be added to a product
+        '''
+        catagory2 = self.product.catagories.create(
+            name="Test Cataory 2",
+            description="Blah Blah"
+        )
+        self.assertEqual(len(self.product.catagories.all()), 2)
+        
+    
             
 class PromotionTestCase(ImageAbstractTestCase, TestCase):
     pass

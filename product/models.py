@@ -15,6 +15,8 @@ from easy_thumbnails.fields import ThumbnailerImageField
 
 
 
+
+
 # Validators
 def validate_non_zero(value):
     if value < 0:
@@ -77,18 +79,19 @@ class Promotion(models.Model):
             raise ValidationError("Must choose from item set.")
         else:
             super(Promotion, self).save(*args, **kwargs)
+    
 
-
-        
+class Catagory(models.Model):
+    name = models.CharField(max_length=200)
+    description = models.CharField(max_length=1000)
+    
     
 class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.CharField(max_length=1000)
     created = models.DateTimeField('Date created')
-    tags = models.ManyToManyField(
-        Tag, 
-        blank=True
-    )
+    tags = models.ManyToManyField(Tag, blank=True)
+    catagories = models.ManyToManyField(Catagory, blank=True)
 
     def __str__(self):
         return self.name
@@ -189,6 +192,13 @@ class Thumbnail(models.Model):
             exp_txt = "Thumbnail should belong to the same object"
             raise IntegrityError(exp_txt)
             
+
+
+
+
+
+
+
 
 # These two auto-delete files from filesystem when they are unneeded:
 @receiver(models.signals.post_delete, sender=Image)
