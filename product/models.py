@@ -98,8 +98,6 @@ class Product(models.Model):
         
 
 
-
-
 class Item(models.Model):
     SMALL = 'sm'
     MEDIUM = 'md'
@@ -169,6 +167,7 @@ class Image(models.Model):
     
     def __str__(self):
         return self.picture.name
+
 
 class Thumbnail(models.Model):
     picture = models.ForeignKey(
