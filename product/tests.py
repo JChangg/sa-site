@@ -97,13 +97,14 @@ class ItemTestCase(ItemAbstractTestCase, TestCase):
         '''
         item = models.Item.objects.create(
             stock=100,
-            description='weighs 100g',
             RRP = 2.5,
             product = self.product,
             size = models.Item.MEDIUM
         )
         self.assertEqual(item.price, item.RRP)
-        
+        self.assertEqual(item.description, self.product.description)
+    
+    
     def test_item_stock_function(self):
         ''' Tests that the out_of_stock function of item functions correctly
         '''

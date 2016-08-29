@@ -28,15 +28,16 @@
         </div>
 
         <div class="col-md-9">
-                {% if item_list %}
-                    {% for item in item_list %}
-                        {% include "product/card.html" with item=item %}
+            {% include "product/card.html" %}
+            <!--
+                {% if product_list %}
+                    {% for product in product_list %}
+                        {% include "product/card.html" with product=product %}
                     {% endfor %}
                 {% else %}
-                    <p>Unfortunately, no items match the query.</p>
+                    <p>Unfortunately, no products are found.</p>
                 {% endif %}
-
-                
+            -->
         </div>
  
     </div>

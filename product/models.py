@@ -139,6 +139,8 @@ class Item(models.Model):
     def save(self, *args, **kwargs):
         if self.size not in dict(Item.SIZE_CHOICES):
             raise ValidationError('Invalid size')
+        if not self.description:
+            self.description=self.product.description
         if not self.price:
             self.price = self.RRP
         super(Item, self).save(*args, **kwargs)
